@@ -1,5 +1,7 @@
 # Mallard
 
+[![Go Version](https://img.shields.io/badge/Go-1.26.2-blue.svg)](https://go.dev/)
+
 这是一个轻量级的链路追踪工具，基于采样和分布式追踪，生成清晰的调用树。
 
 _Mallard —— 动画片《鸭子侦探》 中的名侦探 梅小姐。_
