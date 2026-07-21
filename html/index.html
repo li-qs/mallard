@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>分布式链路追踪 - 调用链查询</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #f0f2f5;
+        padding: 24px;
+        color: #333;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .header {
+        background: #fff;
+        padding: 20px 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .header h1 {
+        font-size: 20px;
+        font-weight: 600;
+        color: #1a1a2e;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .header h1 span {
+        background: #4f46e5;
+        color: #fff;
+        font-size: 12px;
+        padding: 2px 12px;
+        border-radius: 20px;
+        font-weight: 400;
+      }
+      .search-box {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .search-box input {
+        padding: 8px 16px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+        width: 320px;
+        transition: border-color 0.2s;
+        font-family: "Courier New", monospace;
+      }
+      .search-box input:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+      }
+      .search-box button {
+        padding: 8px 24px;
+        background: #4f46e5;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .search-box button:hover {
+        background: #4338ca;
+      }
+      .search-box button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .error-box {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #dc2626;
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+      }
+      .error-box.show {
+        display: block;
+      }
+      .toast {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #0f172a;
+        color: #fff;
+        padding: 8px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        z-index: 2000;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+      .toast.show {
+        opacity: 1;
+      }
+      .trace-meta {
+        background: #fff;
+        padding: 16px 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+        display: none;
+      }
+      .trace-meta.show {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: center;
+      }
+      .trace-meta .label {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .trace-meta .value {
+        font-size: 14px;
+        font-weight: 500;
+        font-family: "Courier New", monospace;
+        color: #1a1a2e;
+      }
+      .trace-meta .badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+      }
+      .badge.success {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .badge.error {
+        background: #fecaca;
+        color: #991b1b;
+      }
+      .waterfall-container {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        display: none;
+      }
+      .waterfall-container.show {
+        display: block;
+      }
+      .dup-container {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-top: 20px;
+        display: none;
+        overflow: hidden;
+      }
+      .dup-container.show {
+        display: block;
+      }
+      .dup-header {
+        padding: 12px 20px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 13px;
+        font-weight: 600;
+        color: #6b7280;
+      }
+      .dup-group {
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .dup-group:last-child {
+        border-bottom: none;
+      }
+      .dup-group-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #1a1a2e;
+        cursor: default;
+      }
+      .dup-group-head .dup-head-op {
+        font-weight: 400;
+        color: #94a3b8;
+        font-size: 12px;
+      }
+      .dup-group-head .dup-badge {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        font-size: 11px;
+        padding: 1px 8px;
+        border-radius: 10px;
+        font-weight: 500;
+      }
+      .dup-row {
+        padding: 5px 20px 5px 20px;
+        font-size: 12px;
+        color: #6b7280;
+        align-items: center;
+      }
+      .dup-row:hover {
+        background: #f0f4ff;
+      }
+      .dup-chain-wrap {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+        overflow: hidden;
+      }
+      .dup-row .dup-dur {
+        font-family: "Courier New", monospace;
+        text-align: right;
+      }
+      .dup-row .dup-status {
+        text-align: center;
+      }
+      .dup-empty {
+        padding: 20px;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 13px;
+      }
+      .dup-chain-node {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 400;
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        white-space: nowrap;
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .dup-chain-node strong {
+        font-weight: 600;
+        color: inherit;
+      }
+      .dup-chain-op {
+        font-size: 10px;
+        color: #94a3b8;
+        margin-left: 4px;
+      }
+      .dup-chain-node.self {
+        background: #fef3c7;
+        color: #92400e;
+        border-color: #fde68a;
+      }
+      .dup-chain-node.self .dup-chain-op {
+        color: rgba(146, 64, 14, 0.65);
+      }
+      .dup-chain-arrow {
+        color: #96a4b7;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .waterfall-header {
+        display: grid;
+        grid-template-columns: var(--name-col-width, 340px) 1fr 80px;
+        padding: 12px 20px;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .waterfall-row {
+        display: grid;
+        grid-template-columns: var(--name-col-width, 340px) 1fr 80px;
+        padding: 0 20px;
+        border-bottom: 1px solid #f3f4f6;
+        align-items: stretch;
+        min-height: 44px;
+        transition: background 0.1s;
+        cursor: default;
+      }
+      .waterfall-row:hover {
+        background: #f0f4ff;
+      }
+      .waterfall-row .service-name {
+        font-size: 13px;
+        font-weight: 500;
+        color: #1a1a2e;
+        display: flex;
+        align-items: stretch;
+        overflow: hidden;
+        height: 100%;
+        padding: 8px 0;
+      }
+      .waterfall-row .service-name .name-text {
+        display: block;
+        line-height: 28px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+      .waterfall-row .service-name .srv {
+        margin-left: 2px;
+      }
+      .waterfall-row .service-name .op {
+        font-weight: 400;
+        color: #6b7280;
+        font-size: 12px;
+        margin-left: 6px;
+      }
+      .service-name .copy-btn {
+        display: none;
+        margin-left: 2px;
+        cursor: pointer;
+        font-size: 12px;
+        opacity: 0.3;
+        user-select: none;
+        flex-shrink: 0;
+        line-height: 28px;
+      }
+      .service-name:hover > .copy-btn {
+        display: inline;
+      }
+      .service-name .copy-btn:hover {
+        opacity: 1;
+      }
+      .tree-connector {
+        width: 20px;
+        flex-shrink: 0;
+        position: relative;
+      }
+      .tree-vline::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -8px;
+        bottom: -8px;
+        border-left: 1.5px solid #d1d5db;
+      }
+      .tree-branch::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -8px;
+        bottom: -8px;
+        border-left: 1.5px solid #d1d5db;
+      }
+      .tree-branch::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        right: 2px;
+        height: 0;
+        border-bottom: 1.5px solid #d1d5db;
+      }
+      .tree-leaf::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -8px;
+        bottom: 50%;
+        border-left: 1.5px solid #d1d5db;
+      }
+      .tree-leaf::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        right: 2px;
+        height: 0;
+        border-bottom: 1.5px solid #d1d5db;
+      }
+      .tree-empty {
+        /* no lines */
+      }
+      .waterfall-row .bar-wrapper {
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        padding: 8px 0;
+      }
+      .waterfall-row .bar {
+        height: 18px;
+        border-radius: 4px;
+        position: absolute;
+        left: 0;
+        min-width: 4px;
+        transition: width 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 500;
+        padding: 0 6px;
+        white-space: nowrap;
+      }
+      .waterfall-row .duration {
+        font-size: 12px;
+        color: #6b7280;
+        text-align: right;
+        font-family: "Courier New", monospace;
+        padding: 8px 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+      }
+      .waterfall-row .bar-green {
+        background: #10b981;
+      }
+      .waterfall-row .bar-blue {
+        background: #3b82f6;
+      }
+      .waterfall-row .bar-purple {
+        background: #8b5cf6;
+      }
+      .waterfall-row .bar-orange {
+        background: #f59e0b;
+      }
+      .waterfall-row .bar-red {
+        background: #ef4444;
+      }
+      .waterfall-row .bar-pink {
+        background: #ec4899;
+      }
+      .waterfall-row .bar-cyan {
+        background: #06b6d4;
+      }
+      .waterfall-row .bar-gray {
+        background: #9ca3af;
+      }
+      .empty-state {
+        padding: 60px 20px;
+        text-align: center;
+        color: #9ca3af;
+      }
+      .empty-state .icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+      .empty-state h3 {
+        font-size: 18px;
+        color: #6b7280;
+        margin-bottom: 4px;
+      }
+      .empty-state p {
+        font-size: 14px;
+      }
+      .loading {
+        display: none;
+        padding: 40px 20px;
+        text-align: center;
+        color: #6b7280;
+      }
+      .loading.show {
+        display: block;
+      }
+      .loading .spinner {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        border: 3px solid #e5e7eb;
+        border-top-color: #4f46e5;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .waterfall-tooltip {
+        display: none;
+        position: fixed;
+        background: #1a1a2e;
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        max-width: 400px;
+        z-index: 1000;
+        pointer-events: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        line-height: 1.6;
+      }
+      .waterfall-tooltip.show {
+        display: block;
+      }
+      .waterfall-tooltip .tt-label {
+        color: #9ca3af;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .footer {
+        margin-top: 160px;
+        text-align: center;
+        font-size: 13px;
+        color: #9ca3af;
+        border-top: 1px solid #ddd;
+        padding-top: 16px;
+      }
+      @media (max-width: 768px) {
+        .waterfall-header,
+        .waterfall-row {
+          grid-template-columns: var(--name-col-width, 160px) 1fr 60px;
+          font-size: 12px;
+        }
+        .search-box input {
+          width: 200px;
+        }
+        .waterfall-row .service-name .op {
+          display: none;
+        }
+        .tree-connector {
+          width: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toast" id="toast"></div>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <h1>
+          🔍 调用链查询
+          <span>v1.0</span>
+        </h1>
+        <div class="search-box">
+          <input
+            type="text"
+            id="traceInput"
+            placeholder="输入 Trace ID，例如 a1b2c3d4..."
+            spellcheck="false"
+          />
+          <button id="searchBtn">查询</button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="error-box" id="errorBox"></div>
+
+      <!-- Loading -->
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 12px">加载调用链数据...</p>
+      </div>
+
+      <!-- Trace Meta -->
+      <div class="trace-meta" id="traceMeta">
+        <div>
+          <span class="label">Trace ID</span><br /><span
+            class="value"
+            id="metaTraceID"
+            >-</span
+          >
+        </div>
+        <div>
+          <span class="label">总耗时</span><br /><span
+            class="value"
+            id="metaDuration"
+            >-</span
+          >
+        </div>
+        <div>
+          <span class="label">Span 数量</span><br /><span
+            class="value"
+            id="metaCount"
+            >-</span
+          >
+        </div>
+        <div>
+          <span class="label">状态</span><br /><span
+            class="value"
+            id="metaStatus"
+            >-</span
+          >
+        </div>
+      </div>
+
+      <!-- Waterfall -->
+      <div class="waterfall-container" id="waterfallContainer">
+        <div class="waterfall-header">
+          <span>Span</span>
+          <span>时间轴</span>
+          <span style="text-align: right">耗时</span>
+        </div>
+        <div id="waterfallBody"></div>
+      </div>
+
+      <!-- Duplicate Calls -->
+      <div class="dup-container" id="dupContainer">
+        <div class="dup-header">🔁 重复调用</div>
+        <div id="dupBody"></div>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState">
+        <div class="icon">🔍</div>
+        <h3>输入 Trace ID 查询调用链</h3>
+        <p>输入一个已上报的 Trace ID，查看完整的调用瀑布图和重复调用分析</p>
+      </div>
+
+      <div class="footer">Mallard · 分布式链路追踪</div>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="waterfall-tooltip" id="tooltip"></div>
+
+    <script>
+      const API_BASE = ""; // 如果Collector不在同域名下，改为完整地址如 http://localhost:9090
+
+      const traceInput = document.getElementById("traceInput");
+      const searchBtn = document.getElementById("searchBtn");
+      const errorBox = document.getElementById("errorBox");
+      const loading = document.getElementById("loading");
+      const emptyState = document.getElementById("emptyState");
+      const traceMeta = document.getElementById("traceMeta");
+      const waterfallContainer = document.getElementById("waterfallContainer");
+      const waterfallBody = document.getElementById("waterfallBody");
+      const dupContainer = document.getElementById("dupContainer");
+      const dupBody = document.getElementById("dupBody");
+      const tooltip = document.getElementById("tooltip");
+
+      // 颜色池
+      const colors = [
+        "bar-green",
+        "bar-blue",
+        "bar-purple",
+        "bar-orange",
+        // "bar-red",
+        "bar-pink",
+        "bar-cyan",
+        "bar-gray",
+      ];
+
+      searchBtn.addEventListener("click", searchTrace);
+      traceInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") searchTrace();
+      });
+
+      // 页面加载时，如果有 URL 参数 ?trace_id=xxx 则自动查询
+      window.addEventListener("DOMContentLoaded", () => {
+        const params = new URLSearchParams(window.location.search);
+        const tid = params.get("trace_id");
+        if (tid) {
+          traceInput.value = tid;
+          searchTrace();
+        }
+      });
+
+      async function searchTrace() {
+        const traceID = traceInput.value.trim();
+        if (!traceID) {
+          showError("请输入 Trace ID");
+          return;
+        }
+
+        // 更新 URL 参数（方便分享）
+        const url = new URL(window.location);
+        url.searchParams.set("trace_id", traceID);
+        window.history.replaceState({}, "", url);
+
+        showLoading(true);
+        hideError();
+
+        try {
+          const resp = await fetch(`${API_BASE}/trace/${traceID}`);
+          console.log(resp);
+          if (!resp.ok) {
+            if (resp.status === 404) {
+              throw new Error(`未找到 Trace ID: ${traceID}`);
+            }
+            throw new Error(`查询失败: ${resp.status} ${resp.statusText}`);
+          }
+          const spans = await resp.json();
+          if (!Array.isArray(spans) || spans.length === 0) {
+            throw new Error("该 Trace 下没有 Span 数据");
+          }
+          renderWaterfall(spans);
+        } catch (err) {
+          showError(err.message);
+          showEmptyState();
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      function buildTree(spans) {
+        const spanMap = {};
+        const childrenMap = {};
+
+        spans.forEach((s) => {
+          spanMap[s.span_id] = s;
+          const pid = s.parent_id || "__root__";
+          if (!childrenMap[pid]) childrenMap[pid] = [];
+          childrenMap[pid].push(s.span_id);
+        });
+
+        Object.values(childrenMap).forEach((children) => {
+          children.sort(
+            (a, b) => spanMap[a].start_time - spanMap[b].start_time
+          );
+        });
+
+        const ordered = [];
+        function dfs(parentId) {
+          const children = childrenMap[parentId] || [];
+          children.forEach((childId) => {
+            ordered.push(spanMap[childId]);
+            dfs(childId);
+          });
+        }
+
+        const roots = childrenMap["__root__"] || [];
+        roots.forEach((rootId) => {
+          ordered.push(spanMap[rootId]);
+          dfs(rootId);
+        });
+
+        return { ordered, spanMap, childrenMap };
+      }
+
+      function getLinePattern(span, spanMap, childrenMap) {
+        if (!span.parent_id || !spanMap[span.parent_id]) {
+          return [];
+        }
+
+        const chain = [];
+        let current = span;
+        while (current) {
+          chain.unshift(current);
+          const pid = current.parent_id;
+          current = pid && spanMap[pid] ? spanMap[pid] : null;
+        }
+
+        const depth = chain.length;
+        const pattern = [];
+
+        for (let i = 0; i < depth; i++) {
+          const node = chain[i];
+          const parentId = i === 0 ? "__root__" : chain[i - 1].span_id;
+          const siblings = childrenMap[parentId] || [];
+          const isLast =
+            siblings.length > 0 &&
+            siblings[siblings.length - 1] === node.span_id;
+
+          if (i < depth - 1) {
+            pattern.push({ type: isLast ? "empty" : "vline" });
+          } else {
+            pattern.push({ type: isLast ? "leaf" : "branch" });
+          }
+        }
+
+        return pattern;
+      }
+
+      function renderWaterfall(spans) {
+        const { ordered, spanMap, childrenMap } = buildTree(spans);
+
+        const measurer = document.createElement("span");
+        measurer.style.cssText =
+          "position:absolute;top:-9999px;left:-9999px;visibility:hidden;white-space:nowrap;font-size:13px;font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;";
+        document.body.appendChild(measurer);
+
+        let maxNameWidth = 0;
+        ordered.forEach((s) => {
+          const pattern = getLinePattern(s, spanMap, childrenMap);
+          const treeWidth = pattern.length * 16;
+          const errIcon = s.status >= 400 || s.error ? "⚠ " : "";
+          const text =
+            errIcon + (s.service || "unknown") + (s.operation || "-");
+          measurer.innerHTML = text.replace(/</g, "&lt;");
+          const textWidth = measurer.getBoundingClientRect().width;
+          const total = treeWidth + textWidth + 8;
+          if (total > maxNameWidth) maxNameWidth = total;
+        });
+
+        document.body.removeChild(measurer);
+
+        const colWidth = Math.max(160, Math.min(Math.ceil(maxNameWidth), 420));
+        waterfallContainer.style.setProperty(
+          "--name-col-width",
+          colWidth + "px"
+        );
+
+        const minTime = ordered[0].start_time;
+        const maxTime = ordered.reduce(
+          (max, s) => Math.max(max, s.start_time + s.duration),
+          0
+        );
+        const totalDuration = maxTime - minTime;
+
+        if (totalDuration <= 0) {
+          showError("无效的时间数据");
+          return;
+        }
+
+        const errorCount = ordered.filter(
+          (s) => s.status >= 400 || s.error
+        ).length;
+
+        document.getElementById("metaTraceID").textContent =
+          ordered[0].trace_id;
+        document.getElementById("metaDuration").textContent =
+          formatDuration(totalDuration);
+        document.getElementById("metaCount").textContent = ordered.length;
+
+        const nk = (s) => (s.service || "unknown") + "|" + (s.operation || "-");
+        const grp = {};
+        ordered.forEach((s) => {
+          const k = nk(s);
+          if (!grp[k]) grp[k] = 0;
+          grp[k]++;
+        });
+        const dupSpanCnt = Object.values(grp).filter((v) => v > 1).length;
+
+        document.getElementById("metaStatus").innerHTML =
+          (errorCount > 0
+            ? '<span class="badge error">' + errorCount + " 个错误</span> "
+            : '<span class="badge success">全部成功</span> ') +
+          (dupSpanCnt > 0
+            ? '<span class="badge" style="background:#fef3c7;color:#92400e">' +
+              dupSpanCnt +
+              " 个重复</span>"
+            : "");
+        traceMeta.classList.add("show");
+
+        waterfallBody.innerHTML = "";
+        ordered.forEach((span, index) => {
+          let left = ((span.start_time - minTime) / totalDuration) * 100;
+          let width = (span.duration / totalDuration) * 100;
+
+          left = Math.max(0, Math.min(left, 99.9));
+          width = Math.min(width, 100 - left);
+          width = Math.max(width, 0.3);
+
+          const colorIdx = index % colors.length;
+          const pattern = getLinePattern(span, spanMap, childrenMap);
+
+          const row = document.createElement("div");
+          row.className = "waterfall-row";
+
+          const nameDiv = document.createElement("div");
+          nameDiv.className = "service-name";
+
+          let treeHtml = "";
+          pattern.forEach((p) => {
+            if (p.type === "vline") {
+              treeHtml += '<span class="tree-connector tree-vline"></span>';
+            } else if (p.type === "branch") {
+              treeHtml += '<span class="tree-connector tree-branch"></span>';
+            } else if (p.type === "leaf") {
+              treeHtml += '<span class="tree-connector tree-leaf"></span>';
+            } else {
+              treeHtml += '<span class="tree-connector tree-empty"></span>';
+            }
+          });
+
+          const errIcon =
+            span.status >= 400 || span.error
+              ? '<span style="color:#ef4444;">✗ </span>'
+              : "";
+
+          nameDiv.innerHTML =
+            treeHtml +
+            `<span class="name-text">${errIcon}<strong class="srv">${
+              span.service || "unknown"
+            }</strong><span class="op">${span.operation || "-"}</span></span>` +
+            '<span class="copy-btn" title="复制 Span JSON">📋</span>';
+          nameDiv.title =
+            (span.service || "unknown") + " " + (span.operation || "-");
+
+          const copyBtn = nameDiv.querySelector(".copy-btn");
+          copyBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const json = JSON.stringify(span, null, 2);
+            navigator.clipboard.writeText(json).then(() => {
+              copyBtn.textContent = "✓";
+              setTimeout(() => {
+                copyBtn.textContent = "📋";
+              }, 1200);
+              showToast(
+                "已复制 " + (span.service || "?") + " " + (span.operation || "")
+              );
+            });
+          });
+
+          const barWrapper = document.createElement("div");
+          barWrapper.className = "bar-wrapper";
+          const bar = document.createElement("div");
+          bar.className = `bar ${colors[colorIdx]}`;
+          bar.style.left = left + "%";
+          bar.style.width = width + "%";
+          if (width > 7) bar.textContent = formatDuration(span.duration);
+          bar.addEventListener("mouseenter", (e) => showTooltip(e, span));
+          bar.addEventListener("mouseleave", hideTooltip);
+          barWrapper.appendChild(bar);
+
+          const durDiv = document.createElement("div");
+          durDiv.className = "duration";
+          durDiv.textContent = formatDuration(span.duration);
+
+          row.appendChild(nameDiv);
+          row.appendChild(barWrapper);
+          row.appendChild(durDiv);
+          waterfallBody.appendChild(row);
+        });
+
+        waterfallContainer.classList.add("show");
+        emptyState.style.display = "none";
+
+        renderDuplicates(spans);
+      }
+
+      function renderDuplicates(spans) {
+        const nk = (s) => (s.service || "unknown") + "|" + (s.operation || "-");
+        const groups = {};
+        spans.forEach((s) => {
+          const k = nk(s);
+          if (!groups[k]) groups[k] = [];
+          groups[k].push(s);
+        });
+
+        const dupGroups = Object.entries(groups).filter(
+          ([, v]) => v.length > 1
+        );
+        dupBody.innerHTML = "";
+
+        if (dupGroups.length === 0) {
+          dupBody.innerHTML = '<div class="dup-empty">无重复调用 🎉</div>';
+          dupContainer.classList.add("show");
+          return;
+        }
+
+        const spanMap = {};
+        spans.forEach((s) => {
+          spanMap[s.span_id] = s;
+        });
+
+        function chainNode(span, cls) {
+          const svc = span.service || "?";
+          const op = span.operation || "-";
+          const s = document.createElement("span");
+          s.className = "dup-chain-node" + (cls ? " " + cls : "");
+          const errIcon =
+            span.status >= 400 || span.error
+              ? '<span style="color:#ef4444;">✗ </span>'
+              : "";
+          s.innerHTML =
+            errIcon +
+            "<strong>" +
+            svc +
+            "</strong>" +
+            '<span class="dup-chain-op">' +
+            op +
+            "</span>";
+          s.addEventListener("mouseenter", (e) => {
+            const ms = (span.duration / 1e6).toFixed(2);
+            const start = new Date(span.start_time / 1e6).toLocaleTimeString();
+            tooltip.innerHTML =
+              '<div class="tt-label">Span 详情</div>' +
+              "<div><strong>服务</strong> " +
+              svc +
+              "</div>" +
+              "<div><strong>操作</strong> " +
+              op +
+              "</div>" +
+              "<div><strong>Span ID</strong> " +
+              (span.span_id || "-") +
+              "</div>" +
+              "<div><strong>Parent ID</strong> " +
+              (span.parent_id || "(根)") +
+              "</div>" +
+              "<div><strong>耗时</strong> " +
+              ms +
+              " ms</div>" +
+              "<div><strong>状态</strong> " +
+              (span.status || 0) +
+              (span.error ? " ⚠ " + span.error : "") +
+              "</div>" +
+              "<div><strong>开始时间</strong> " +
+              start +
+              "</div>";
+            tooltip.classList.add("show");
+            tooltip.style.left = e.clientX + 14 + "px";
+            tooltip.style.top = e.clientY - 20 + "px";
+            if (e.clientX + 400 > innerWidth)
+              tooltip.style.left = e.clientX - 420 + "px";
+          });
+          s.addEventListener("mouseleave", () => {
+            tooltip.classList.remove("show");
+          });
+          s.style.cursor = "pointer";
+          s.addEventListener("click", (e) => {
+            e.stopPropagation();
+            navigator.clipboard
+              .writeText(JSON.stringify(span, null, 2))
+              .then(() => {
+                showToast("已复制 " + svc + " " + op);
+              });
+          });
+          return s;
+        }
+
+        function arrowEl() {
+          const a = document.createElement("span");
+          a.className = "dup-chain-arrow";
+          a.textContent = "→";
+          return a;
+        }
+
+        dupGroups.forEach(([key, group]) => {
+          const [svc, op] = key.split("|");
+          const div = document.createElement("div");
+          div.className = "dup-group";
+
+          const head = document.createElement("div");
+          head.className = "dup-group-head";
+          head.innerHTML =
+            "<strong>" +
+            svc +
+            '</strong> <span class="dup-head-op">' +
+            op +
+            "</span>" +
+            ' <span class="dup-badge">' +
+            group.length +
+            " 次</span>";
+          div.appendChild(head);
+
+          group.forEach((s) => {
+            const row = document.createElement("div");
+            row.className = "dup-row";
+
+            const chainWrap = document.createElement("div");
+            chainWrap.className = "dup-chain-wrap";
+
+            const ancestors = [];
+            let cur = s;
+            while (cur.parent_id && spanMap[cur.parent_id]) {
+              cur = spanMap[cur.parent_id];
+              ancestors.unshift(cur);
+            }
+
+            ancestors.forEach((a) => {
+              chainWrap.appendChild(chainNode(a));
+              chainWrap.appendChild(arrowEl());
+            });
+
+            chainWrap.appendChild(chainNode(s, "self"));
+
+            const getDescendants = (parentId) => {
+              const kids = spans.filter((c) => c.parent_id === parentId);
+              const result = [];
+              kids.forEach((k) => {
+                result.push(k);
+                result.push(...getDescendants(k.span_id));
+              });
+              return result;
+            };
+            const descendants = getDescendants(s.span_id);
+            descendants.forEach((c) => {
+              chainWrap.appendChild(arrowEl());
+              chainWrap.appendChild(chainNode(c));
+            });
+
+            const start = new Date(s.start_time / 1e6).toLocaleTimeString();
+            const dur = formatDuration(s.duration);
+            const err = s.status >= 400 || s.error;
+
+            row.innerHTML = '<div class="dup-chain-cell"></div>';
+
+            row.querySelector(".dup-chain-cell").appendChild(chainWrap);
+
+            div.appendChild(row);
+          });
+
+          dupBody.appendChild(div);
+        });
+
+        dupContainer.classList.add("show");
+      }
+
+      function showTooltip(event, span) {
+        const el = tooltip;
+        const ms = (span.duration / 1e6).toFixed(2);
+        const start = new Date(span.start_time / 1e6).toLocaleTimeString();
+        el.innerHTML = `
+            <div class="tt-label">Span 详情</div>
+            <div><strong>服务</strong> ${span.service || "-"}</div>
+            <div><strong>操作</strong> ${span.operation || "-"}</div>
+            <div><strong>Span ID</strong> ${span.span_id || "-"}</div>
+            <div><strong>Parent ID</strong> ${span.parent_id || "(根)"}</div>
+            <div><strong>耗时</strong> ${ms} ms</div>
+            <div><strong>状态</strong> ${span.status || 0} ${
+          span.error ? "⚠ " + span.error : ""
+        }</div>
+            <div><strong>开始时间</strong> ${start}</div>
+        `;
+        el.classList.add("show");
+        el.style.left = event.clientX + 16 + "px";
+        el.style.top = event.clientY - 20 + "px";
+        // 确保不超出右边界
+        if (event.clientX + 400 > window.innerWidth) {
+          el.style.left = event.clientX - 420 + "px";
+        }
+      }
+
+      function hideTooltip() {
+        tooltip.classList.remove("show");
+      }
+
+      function formatDuration(ns) {
+        if (ns < 1000) return ns + "ns";
+        if (ns < 1e6) return (ns / 1e3).toFixed(1) + "µs";
+        if (ns < 1e9) return (ns / 1e6).toFixed(2) + "ms";
+        return (ns / 1e9).toFixed(2) + "s";
+      }
+
+      function showError(msg) {
+        errorBox.textContent = "⚠ " + msg;
+        errorBox.classList.add("show");
+      }
+      function hideError() {
+        errorBox.classList.remove("show");
+      }
+      function showLoading(on) {
+        loading.classList.toggle("show", on);
+        searchBtn.disabled = on;
+      }
+      function showEmptyState() {
+        emptyState.style.display = "block";
+        traceMeta.classList.remove("show");
+        waterfallContainer.classList.remove("show");
+        dupContainer.classList.remove("show");
+      }
+
+      let toastTimer;
+      const toastEl = document.getElementById("toast");
+      function showToast(msg) {
+        clearTimeout(toastTimer);
+        toastEl.textContent = "📋 " + msg;
+        toastEl.classList.add("show");
+        toastTimer = setTimeout(() => {
+          toastEl.classList.remove("show");
+        }, 2000);
+      }
+
+      // 点击页面其他地方隐藏 Tooltip
+      document.addEventListener("click", hideTooltip);
+    </script>
+  </body>
+</html>

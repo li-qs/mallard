@@ -3,12 +3,13 @@ package collector
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"sync"
 )
 
 type Span struct {
-	SpanID    string `json:"span_id"`
 	TraceID   string `json:"trace_id"`
+	SpanID    string `json:"span_id"`
 	ParentID  string `json:"parent_id"`
 	Service   string `json:"service"`
 	Operation string `json:"operation"`
@@ -59,6 +60,15 @@ func (c *Collector) HandleQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "trace not found", http.StatusNotFound)
 		return
 	}
+
+	sort.Slice(spans, func(i, j int) bool {
+		return spans[i].StartTime < spans[j].StartTime
+	})
+
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(spans)
