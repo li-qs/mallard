@@ -16,7 +16,7 @@ go run main.go
 go run main.go 9090
 ```
 
-打开浏览器访问 `http://localhost:8090/ui/` 查看 UI。
+打开浏览器访问 `http://localhost:8090/ui/` 查看 UI。Demo：https://static.planxt.site/mallard/
 
 客户端接入请使用 [mallard-tracer](https://github.com/li-qs/mallard-tracer)。
 

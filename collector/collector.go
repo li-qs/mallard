@@ -65,11 +65,6 @@ func (c *Collector) HandleQuery(w http.ResponseWriter, r *http.Request) {
 		return spans[i].StartTime < spans[j].StartTime
 	})
 
-	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(spans)
 }
