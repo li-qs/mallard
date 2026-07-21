@@ -1,10 +1,8 @@
 # Mallard
 
-[![Go Version](https://img.shields.io/badge/Go-1.26.2-blue.svg)](https://go.dev/)
+这是一个轻量级的链路追踪工具，基于采样和分布式追踪，生成清晰的调用树。
 
-Mallard 是一个轻量级的链路追踪工具，基于采样和分布式追踪，生成清晰的调用树。无论是定位慢调用、诊断异常，还是梳理服务依赖，Mallard 都能帮你快速找到"案发现场"。
-
-🦆 致敬《鸭子侦探》中的梅小姐 —— 她用敏锐的观察力破解疑案，我们用精准的链路数据破解系统故障。
+_Mallard —— 动画片《鸭子侦探》 中的名侦探 梅小姐。_
 
 ## 快速开始
 
@@ -17,6 +15,8 @@ go run main.go 9090
 ```
 
 打开浏览器访问 `http://localhost:8090/ui/` 查看 UI。
+
+客户端接入请使用 [mallard-tracer](https://github.com/li-qs/mallard-tracer)。
 
 ## API
 
@@ -40,17 +40,17 @@ Content-Type: application/json
 ]
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| trace_id | string | 调用链 ID |
-| span_id | string | Span ID |
-| parent_id | string | 父 Span ID，根节点为空 |
-| service | string | 服务名 |
-| operation | string | 操作名 |
-| start_time | int64 | 开始时间（纳秒） |
-| duration | int64 | 耗时（纳秒） |
-| status | int | HTTP 状态码 |
-| error | string | 错误信息（可选） |
+| 字段       | 类型   | 说明                   |
+| ---------- | ------ | ---------------------- |
+| trace_id   | string | 调用链 ID              |
+| span_id    | string | Span ID                |
+| parent_id  | string | 父 Span ID，根节点为空 |
+| service    | string | 服务名                 |
+| operation  | string | 操作名                 |
+| start_time | int64  | 开始时间（纳秒）       |
+| duration   | int64  | 耗时（纳秒）           |
+| status     | int    | HTTP 状态码            |
+| error      | string | 错误信息（可选）       |
 
 ### 查询 Trace
 
@@ -66,10 +66,16 @@ Web UI 截图:
 
 ![alt text](https://github.com/user-attachments/assets/186e416a-b644-408e-bdc0-bb8fc75867a5)
 
-- 调用链瀑布图
-- 重复调用分析
-  - 调用关系图
+- 调用链
+  - 调用树：父子 Span 之间的调用关系，出现 ❌ 表示调用错误；鼠标 Hover 出现复制图标 📋，点击可复制当前 Span 详情。
+  - 瀑布图：每个 Span 的发生时间、耗时等；鼠标 Hover 展示 Span 详情。
+- 重复调用
+  - 调用次数：该 Span 被重复调用的次数，出现重复调用往往意味着业务设计有问题，请求因此变慢。
+  - 调用关系：高亮展示重复调用的 Span；鼠标点击任意 Span 可复制 Span 详情。
 
+## TODO
+
+- [ ] 数据持久化
 
 ## 项目结构
 
@@ -81,3 +87,7 @@ mallard/
 │   └── index.html    # Web UI（瀑布图 + 重复调用 + 关系图）
 └── go.mod
 ```
+
+## License
+
+[MIT](./LICENSE)
