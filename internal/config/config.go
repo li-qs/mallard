@@ -1,0 +1,67 @@
+package config
+
+import (
+	"fmt"
+
+	"github.com/spf13/viper"
+)
+
+type Config struct {
+	Log      LogConfig      `mapstructure:"log"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Auth     AuthConfig     `mapstructure:"auth"`
+}
+
+type LogConfig struct {
+	Level string `mapstructure:"level"`
+}
+
+type ServerConfig struct {
+	ListenAddr   string   `mapstructure:"listen_addr"`
+	AllowOrigins []string `mapstructure:"allow_origins"`
+}
+
+type DatabaseConfig struct {
+	Main string `mapstructure:"main"`
+}
+
+type AuthConfig struct {
+	JWTSecret                 string `mapstructure:"jwt_secret"`
+	AccessTokenExpireSeconds  int    `mapstructure:"access_token_expire_seconds"`
+	RefreshTokenExpireSeconds int    `mapstructure:"refresh_token_expire_seconds"`
+}
+
+func Load(v *viper.Viper) (*Config, error) {
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+	setDefaults(&cfg)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func setDefaults(cfg *Config) {
+	if cfg.Server.ListenAddr == "" {
+		cfg.Server.ListenAddr = ":8080"
+	}
+	if cfg.Auth.AccessTokenExpireSeconds == 0 {
+		cfg.Auth.AccessTokenExpireSeconds = 900
+	}
+	if cfg.Auth.RefreshTokenExpireSeconds == 0 {
+		cfg.Auth.RefreshTokenExpireSeconds = 604800
+	}
+}
+
+func (c *Config) Validate() error {
+	if c.Database.Main == "" {
+		return fmt.Errorf("database.main is required")
+	}
+	if c.Auth.JWTSecret == "" {
+		return fmt.Errorf("auth.jwt_secret is required")
+	}
+	return nil
+}
