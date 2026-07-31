@@ -9,7 +9,6 @@ import (
 	"myapi/internal/logger"
 	myMiddleware "myapi/internal/middleware"
 	"myapi/internal/router"
-	"myapi/pkg/mysql"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +19,8 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/spf13/viper"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 )
 
@@ -35,6 +36,9 @@ func (v *Validator) Validate(i any) error {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	var configFile string
 	flag.StringVar(&configFile, "config", "./config.yaml", "config file path")
 	flag.Parse()
@@ -55,11 +59,11 @@ func main() {
 	}
 	defer logger.Sync()
 
-	db, err := mysql.Connect(cfg.Database.Main)
+	mongo, err := mongo.Connect(options.Client().ApplyURI(cfg.Mongodb.Main))
 	if err != nil {
-		logger.Fatal("init mysql failed", zap.Error(err))
+		logger.Fatal("init mongodb failed", zap.Error(err))
 	}
-	defer db.Close()
+	defer mongo.Disconnect(ctx)
 
 	e := echo.New()
 	e.Logger = slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -79,10 +83,7 @@ func main() {
 		return c.String(http.StatusOK, "OK")
 	})
 
-	router.Register(e, db, cfg)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	router.Register(e, mongo, cfg)
 
 	sc := echo.StartConfig{
 		Address:         cfg.Server.ListenAddr,

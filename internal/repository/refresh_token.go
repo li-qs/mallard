@@ -1,34 +1,45 @@
 package repository
 
 import (
+	"context"
 	"myapi/internal/model"
-	"myapi/pkg/mysql"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type RefreshToken struct {
-	DB *mysql.DB
+	coll *mongo.Collection
 }
 
-func (r *RefreshToken) Create(userID int64, tokenHash string, expiresAt int64) error {
-	_, err := r.DB.Exec(
-		"INSERT INTO `refresh_token` (user_id, token_hash, expires_at) VALUES (?, ?, FROM_UNIXTIME(?))",
-		userID, tokenHash, expiresAt,
-	)
+func NewRefreshToken(client *mongo.Client) *RefreshToken {
+	return &RefreshToken{
+		coll: client.Database(model.RefreshTokenDB).Collection(model.RefreshTokenColl),
+	}
+}
+
+func (r *RefreshToken) Create(userID bson.ObjectID, tokenHash string, expiresAt time.Time) error {
+	_, err := r.coll.InsertOne(context.Background(), model.RefreshToken{
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+	})
 	return err
 }
 
 func (r *RefreshToken) FindByHash(tokenHash string) (*model.RefreshToken, error) {
 	var rt model.RefreshToken
-	err := r.DB.Get(&rt, "SELECT * FROM `refresh_token` WHERE token_hash=?", tokenHash)
+	err := r.coll.FindOne(context.Background(), bson.M{"token_hash": tokenHash}).Decode(&rt)
 	return &rt, err
 }
 
-func (r *RefreshToken) Delete(id int64) error {
-	_, err := r.DB.Exec("DELETE FROM `refresh_token` WHERE id=?", id)
+func (r *RefreshToken) Delete(id bson.ObjectID) error {
+	_, err := r.coll.DeleteOne(context.Background(), bson.M{"_id": id})
 	return err
 }
 
-func (r *RefreshToken) DeleteAllByUserID(userID int64) error {
-	_, err := r.DB.Exec("DELETE FROM `refresh_token` WHERE user_id=?", userID)
+func (r *RefreshToken) DeleteAllByUserID(userID bson.ObjectID) error {
+	_, err := r.coll.DeleteMany(context.Background(), bson.M{"user_id": userID})
 	return err
 }

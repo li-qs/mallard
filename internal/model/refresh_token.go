@@ -1,11 +1,28 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	RefreshTokenDB   = "mallard"
+	RefreshTokenColl = "refresh_token"
+)
 
 type RefreshToken struct {
-	ID        int64     `db:"id"`
-	UserID    int64     `db:"user_id"`
-	TokenHash string    `db:"token_hash"`
-	ExpiresAt time.Time `db:"expires_at"`
-	CreatedAt time.Time `db:"created_at"`
+	ID        bson.ObjectID `bson:"_id,omitempty"`
+	UserID    bson.ObjectID `bson:"user_id,omitempty"`
+	TokenHash string        `bson:"token_hash"`
+	ExpiresAt time.Time     `bson:"expires_at"`
+	CreatedAt time.Time     `bson:"created_at"`
+}
+
+func (m RefreshToken) DB() string {
+	return "mallard"
+}
+
+func (m RefreshToken) Coll() string {
+	return "refresh_token"
 }

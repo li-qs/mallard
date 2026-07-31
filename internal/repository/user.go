@@ -1,32 +1,36 @@
 package repository
 
 import (
+	"context"
 	"myapi/internal/model"
-	"myapi/pkg/mysql"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type User struct {
-	DB *mysql.DB
+	coll *mongo.Collection
 }
 
-func (r *User) GetByID(id int64) (*model.User, error) {
+func NewUser(client *mongo.Client) *User {
+	return &User{
+		coll: client.Database(model.RefreshTokenDB).Collection(model.RefreshTokenColl),
+	}
+}
+
+func (r *User) GetByID(id bson.ObjectID) (*model.User, error) {
 	var user model.User
-	err := r.DB.Get(&user, "SELECT * FROM `user` WHERE id=?", id)
+	err := r.coll.FindOne(context.Background(), bson.M{"_id": id}).Decode(&user)
 	return &user, err
 }
 
 func (r *User) GetByUsername(username string) (*model.User, error) {
 	var user model.User
-	err := r.DB.Get(&user, "SELECT * FROM `user` WHERE username=?", username)
+	err := r.coll.FindOne(context.Background(), bson.M{"username": username}).Decode(&user)
 	return &user, err
 }
 
-func (r *User) UpdateUsername(id int64, newUsername string) error {
-	_, err := r.DB.Exec("UPDATE `user` SET username=? WHERE id=?", newUsername, id)
-	return err
-}
-
-func (r *User) UpdatePasswordHash(id int64, passwordHash string) error {
-	_, err := r.DB.Exec("UPDATE `user` SET password_hash=? WHERE id=?", passwordHash, id)
+func (r *User) UpdatePasswordHash(id bson.ObjectID, passwordHash string) error {
+	_, err := r.coll.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"password_hash": passwordHash})
 	return err
 }

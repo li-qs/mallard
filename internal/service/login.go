@@ -11,12 +11,13 @@ import (
 	"myapi/internal/utils"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type jwtClaims struct {
 	jwt.RegisteredClaims
-	UserID   int64  `json:"uid"`
+	UserID   string `json:"uid"`
 	Username string `json:"username"`
 }
 
@@ -53,7 +54,7 @@ func (s *Login) GenerateTokens(user *model.User) (string, string, int, error) {
 
 	hash := hashToken(refreshRaw)
 	expiresAt := now.Add(time.Duration(s.RefreshTokenExpireSeconds) * time.Second)
-	if err := s.RefreshTokenRepo.Create(user.ID, hash, expiresAt.Unix()); err != nil {
+	if err := s.RefreshTokenRepo.Create(user.ID, hash, expiresAt); err != nil {
 		return "", "", 0, err
 	}
 
@@ -66,7 +67,7 @@ func (s *Login) RefreshTokens(refreshRaw string) (string, string, int, error) {
 	if err != nil {
 		return "", "", 0, fmt.Errorf("refresh token: %w", err)
 	}
-	if rt.ID == 0 {
+	if rt.ID == bson.NilObjectID {
 		return "", "", 0, errInvalidRefreshToken
 	}
 	if time.Now().After(rt.ExpiresAt) {
@@ -87,13 +88,13 @@ func (s *Login) RefreshTokens(refreshRaw string) (string, string, int, error) {
 func (s *Login) Logout(refreshRaw string) error {
 	hash := hashToken(refreshRaw)
 	rt, err := s.RefreshTokenRepo.FindByHash(hash)
-	if err != nil || rt.ID == 0 {
+	if err != nil || rt.ID == bson.NilObjectID {
 		return nil
 	}
 	return s.RefreshTokenRepo.Delete(rt.ID)
 }
 
-func (s *Login) RevokeAllUserTokens(userID int64) error {
+func (s *Login) RevokeAllUserTokens(userID bson.ObjectID) error {
 	return s.RefreshTokenRepo.DeleteAllByUserID(userID)
 }
 
@@ -120,7 +121,7 @@ func (s *Login) generateJWT(user *model.User, now time.Time) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(s.AccessTokenExpireSeconds) * time.Second)),
 		},
-		UserID:   user.ID,
+		UserID:   user.ID.Hex(),
 		Username: user.Username,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

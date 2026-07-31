@@ -6,14 +6,14 @@ import (
 	myMiddleware "myapi/internal/middleware"
 	"myapi/internal/repository"
 	"myapi/internal/service"
-	"myapi/pkg/mysql"
 
 	"github.com/labstack/echo/v5"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func Register(e *echo.Echo, db *mysql.DB, cfg *config.Config) {
-	userRepo := &repository.User{DB: db}
-	refreshTokenRepo := &repository.RefreshToken{DB: db}
+func Register(e *echo.Echo, mongo *mongo.Client, cfg *config.Config) {
+	userRepo := repository.NewUser(mongo)
+	refreshTokenRepo := repository.NewRefreshToken(mongo)
 
 	loginService := &service.Login{
 		UserRepo:                  userRepo,

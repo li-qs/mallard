@@ -8,6 +8,7 @@ import (
 	"myapi/internal/vo"
 
 	"github.com/labstack/echo/v5"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type User struct {
@@ -17,7 +18,7 @@ type User struct {
 
 func (h *User) Get(c *echo.Context) error {
 	user, ok := c.Get("user").(*model.User)
-	if !ok || user == nil || user.ID <= 0 {
+	if !ok || user == nil || user.ID == bson.NilObjectID {
 		return response.JsonError(c, 403, "access denied")
 	}
 
@@ -26,7 +27,7 @@ func (h *User) Get(c *echo.Context) error {
 
 func (h *User) UpdatePassword(c *echo.Context) error {
 	user, ok := c.Get("user").(*model.User)
-	if !ok || user == nil || user.ID <= 0 {
+	if !ok || user == nil || user.ID == bson.NilObjectID {
 		return response.JsonError(c, 403, "access denied")
 	}
 

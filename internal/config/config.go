@@ -7,10 +7,10 @@ import (
 )
 
 type Config struct {
-	Log      LogConfig      `mapstructure:"log"`
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Auth     AuthConfig     `mapstructure:"auth"`
+	Log     LogConfig     `mapstructure:"log"`
+	Server  ServerConfig  `mapstructure:"server"`
+	Mongodb MongodbConfig `mapstructure:"mongodb"`
+	Auth    AuthConfig    `mapstructure:"auth"`
 }
 
 type LogConfig struct {
@@ -22,7 +22,7 @@ type ServerConfig struct {
 	AllowOrigins []string `mapstructure:"allow_origins"`
 }
 
-type DatabaseConfig struct {
+type MongodbConfig struct {
 	Main string `mapstructure:"main"`
 }
 
@@ -57,8 +57,8 @@ func setDefaults(cfg *Config) {
 }
 
 func (c *Config) Validate() error {
-	if c.Database.Main == "" {
-		return fmt.Errorf("database.main is required")
+	if c.Mongodb.Main == "" {
+		return fmt.Errorf("mongodb.main is required")
 	}
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("auth.jwt_secret is required")

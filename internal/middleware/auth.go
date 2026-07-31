@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v5"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func Auth(jwtSecret string) echo.MiddlewareFunc {
@@ -36,14 +37,19 @@ func Auth(jwtSecret string) echo.MiddlewareFunc {
 				return response.JsonError(c, 401, "请登录")
 			}
 
-			uid, _ := claims["uid"].(float64)
+			uid, _ := claims["uid"].(string)
 			username, _ := claims["username"].(string)
-			if uid == 0 || username == "" {
+			if uid == "" || username == "" {
+				return response.JsonError(c, 401, "请登录")
+			}
+
+			userID, err := bson.ObjectIDFromHex(uid)
+			if err != nil {
 				return response.JsonError(c, 401, "请登录")
 			}
 
 			c.Set("user", &model.User{
-				ID:       int64(uid),
+				ID:       userID,
 				Username: username,
 			})
 

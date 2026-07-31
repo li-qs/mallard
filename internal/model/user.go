@@ -1,15 +1,20 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+const (
+	UserDB   = "marllard"
+	UserColl = "user"
+)
 
 type User struct {
-	ID           int64     `db:"id"`
-	Username     string    `db:"username"`
-	PasswordHash string    `db:"password_hash"`
-	CreatedAt    time.Time `db:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at"`
-}
-
-func (t User) TableName() string {
-	return "user"
+	ID           bson.ObjectID `bson:"_id,omitempty"`
+	Username     string        `bson:"username"`
+	PasswordHash string        `bson:"password_hash"`
+	CreatedAt    time.Time     `bson:"created_at"`
+	UpdatedAt    time.Time     `bson:"updated_at"`
 }
