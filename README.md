@@ -1,6 +1,16 @@
-# mallard — 链路追踪系统
+# Mallard — 链路追踪系统
 
 基于 Echo v5 + MongoDB 的调用链追踪系统：业务应用通过 App 凭证批量上报 span，按 trace_id 检索链路、搜索 Trace、聚合分析调用关系。
+
+## Web 控制台（Mallard-UI）
+
+管理后台（登录 / Trace 检索 / Trace 详情 / App 管理）由独立前端项目提供：
+
+- 仓库：[github.com/li-qs/mallard-ui](https://github.com/li-qs/mallard-ui)
+- 技术栈：React 18 + TypeScript + Vite + Ant Design 5
+- 对接说明：本仓库 [mallard-ui-design.md](./mallard-ui-design.md)（API 契约、页面设计、全局约定）
+
+本地联调：前端 dev server 默认 `http://localhost:5173`；后端需在 `config.yaml` 的 `server.allow_origins` 加上该源，并设 `auth.cookie_secure: false`（纯 HTTP 下 Cookie 才能生效）。
 
 ## 技术栈
 
@@ -64,11 +74,15 @@
 ```bash
 # 1. 修改 config.yaml 中的 mongodb.main 连接串和 jwt_secret
 
-# 2. 编译运行（启动时会自动建索引并校验数据库连通性）
+# 2. 编译运行后端（启动时会自动建索引并校验数据库连通性）
 go run ./cmd/server
 
 # 或指定配置文件
 go run ./cmd/server -config /path/to/config.yaml
+
+# 3. 启动 Web 控制台（独立项目，见上文「Web 控制台」）
+git clone https://github.com/li-qs/mallard-ui
+cd mallard-ui && npm install && npm run dev   # 浏览器访问 http://localhost:5173
 ```
 
 ## 编译
