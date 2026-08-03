@@ -18,11 +18,3 @@ type RefreshToken struct {
 	ExpiresAt time.Time     `bson:"expires_at"`
 	CreatedAt time.Time     `bson:"created_at"`
 }
-
-func (m RefreshToken) DB() string {
-	return "mallard"
-}
-
-func (m RefreshToken) Coll() string {
-	return "refresh_token"
-}

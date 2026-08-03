@@ -1,4 +1,4 @@
-NAME      = myapi
+NAME      = mallard
 BUILD_DIR = $(CURDIR)/build
 
 .PHONY: all clean

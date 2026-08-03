@@ -1,6 +1,6 @@
 package vo
 
-import "myapi/internal/model"
+import "mallard/internal/model"
 
 type User struct {
 	ID        string `json:"id"`

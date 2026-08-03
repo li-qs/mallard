@@ -1,17 +1,18 @@
 package service
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"myapi/internal/model"
-	"myapi/internal/repository"
-	"myapi/internal/utils"
+	"mallard/internal/model"
+	"mallard/internal/repository"
+	"mallard/internal/utils"
 
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -21,7 +22,10 @@ type jwtClaims struct {
 	Username string `json:"username"`
 }
 
-var errInvalidRefreshToken = fmt.Errorf("invalid refresh token")
+var (
+	ErrInvalidCredentials  = fmt.Errorf("invalid credentials")
+	ErrInvalidRefreshToken = fmt.Errorf("invalid refresh token")
+)
 
 type Login struct {
 	UserRepo                  *repository.User
@@ -31,16 +35,22 @@ type Login struct {
 	RefreshTokenExpireSeconds int
 }
 
-func (s *Login) AuthUser(username, password string) (*model.User, bool, error) {
-	user, err := s.UserRepo.GetByUsername(username)
+func (s *Login) AuthUser(ctx context.Context, username, password string) (*model.User, bool, error) {
+	user, err := s.UserRepo.GetByUsername(ctx, username)
 	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, false, ErrInvalidCredentials
+		}
 		return nil, false, err
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
-	return user, err == nil, nil
+	if err != nil {
+		return nil, false, ErrInvalidCredentials
+	}
+	return user, true, nil
 }
 
-func (s *Login) GenerateTokens(user *model.User) (string, string, int, error) {
+func (s *Login) GenerateTokens(ctx context.Context, user *model.User) (string, string, int, error) {
 	now := time.Now()
 	accessToken, err := s.generateJWT(user, now)
 	if err != nil {
@@ -54,65 +64,48 @@ func (s *Login) GenerateTokens(user *model.User) (string, string, int, error) {
 
 	hash := hashToken(refreshRaw)
 	expiresAt := now.Add(time.Duration(s.RefreshTokenExpireSeconds) * time.Second)
-	if err := s.RefreshTokenRepo.Create(user.ID, hash, expiresAt); err != nil {
+	if err := s.RefreshTokenRepo.Create(ctx, user.ID, hash, expiresAt); err != nil {
 		return "", "", 0, err
 	}
 
 	return accessToken, refreshRaw, s.AccessTokenExpireSeconds, nil
 }
 
-func (s *Login) RefreshTokens(refreshRaw string) (string, string, int, error) {
+func (s *Login) RefreshTokens(ctx context.Context, refreshRaw string) (string, string, int, error) {
 	hash := hashToken(refreshRaw)
-	rt, err := s.RefreshTokenRepo.FindByHash(hash)
+	rt, err := s.RefreshTokenRepo.FindByHash(ctx, hash)
 	if err != nil {
-		return "", "", 0, fmt.Errorf("refresh token: %w", err)
-	}
-	if rt.ID == bson.NilObjectID {
-		return "", "", 0, errInvalidRefreshToken
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return "", "", 0, ErrInvalidRefreshToken
+		}
+		return "", "", 0, fmt.Errorf("find refresh token: %w", err)
 	}
 	if time.Now().After(rt.ExpiresAt) {
-		s.RefreshTokenRepo.Delete(rt.ID)
-		return "", "", 0, errInvalidRefreshToken
+		s.RefreshTokenRepo.Delete(ctx, rt.ID)
+		return "", "", 0, ErrInvalidRefreshToken
 	}
 
-	s.RefreshTokenRepo.Delete(rt.ID)
+	s.RefreshTokenRepo.Delete(ctx, rt.ID)
 
-	user, err := s.UserRepo.GetByID(rt.UserID)
+	user, err := s.UserRepo.GetByID(ctx, rt.UserID)
 	if err != nil {
 		return "", "", 0, err
 	}
 
-	return s.GenerateTokens(user)
+	return s.GenerateTokens(ctx, user)
 }
 
-func (s *Login) Logout(refreshRaw string) error {
+func (s *Login) Logout(ctx context.Context, refreshRaw string) error {
 	hash := hashToken(refreshRaw)
-	rt, err := s.RefreshTokenRepo.FindByHash(hash)
+	rt, err := s.RefreshTokenRepo.FindByHash(ctx, hash)
 	if err != nil || rt.ID == bson.NilObjectID {
 		return nil
 	}
-	return s.RefreshTokenRepo.Delete(rt.ID)
+	return s.RefreshTokenRepo.Delete(ctx, rt.ID)
 }
 
-func (s *Login) RevokeAllUserTokens(userID bson.ObjectID) error {
-	return s.RefreshTokenRepo.DeleteAllByUserID(userID)
-}
-
-func (s *Login) ParseJWT(tokenStr string) (*jwtClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &jwtClaims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		return []byte(s.JWTSecret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	claims, ok := token.Claims.(*jwtClaims)
-	if !ok || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
-	}
-	return claims, nil
+func (s *Login) RevokeAllUserTokens(ctx context.Context, userID bson.ObjectID) error {
+	return s.RefreshTokenRepo.DeleteAllByUserID(ctx, userID)
 }
 
 func (s *Login) generateJWT(user *model.User, now time.Time) (string, error) {
@@ -129,6 +122,5 @@ func (s *Login) generateJWT(user *model.User, now time.Time) (string, error) {
 }
 
 func hashToken(raw string) string {
-	b := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(b[:])
+	return utils.SHA256Hex(raw)
 }

@@ -1,41 +1,59 @@
 package router
 
 import (
-	"myapi/internal/config"
-	"myapi/internal/handler"
-	myMiddleware "myapi/internal/middleware"
-	"myapi/internal/repository"
-	"myapi/internal/service"
+	"mallard/internal/config"
+	"mallard/internal/handler"
+	myMiddleware "mallard/internal/middleware"
+	"mallard/internal/service"
 
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func Register(e *echo.Echo, mongo *mongo.Client, cfg *config.Config) {
-	userRepo := repository.NewUser(mongo)
-	refreshTokenRepo := repository.NewRefreshToken(mongo)
+type Deps struct {
+	LoginService *service.Login
+	UserService  *service.User
+	AppService   *service.App
+	SpanService  *service.Span
+	Mongo        *mongo.Client
+}
 
-	loginService := &service.Login{
-		UserRepo:                  userRepo,
-		RefreshTokenRepo:          refreshTokenRepo,
-		JWTSecret:                 cfg.Auth.JWTSecret,
-		AccessTokenExpireSeconds:  cfg.Auth.AccessTokenExpireSeconds,
-		RefreshTokenExpireSeconds: cfg.Auth.RefreshTokenExpireSeconds,
-	}
+func Register(e *echo.Echo, deps *Deps, cfg *config.Config) {
+	health := handler.Health{Mongo: deps.Mongo}
+	e.GET("/health", health.Liveness)
+	e.GET("/ready", health.Readiness)
 
-	userService := &service.User{
-		UserRepo: userRepo,
-	}
-
-	login := handler.Login{LoginService: loginService}
-	e.POST("/login", login.Login)
+	login := handler.Login{LoginService: deps.LoginService, CookieSecure: cfg.Auth.CookieSecure}
+	e.POST("/login", login.Login, middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+		Store: middleware.NewRateLimiterMemoryStore(10),
+		IdentifierExtractor: func(c *echo.Context) (string, error) {
+			return c.RealIP(), nil
+		},
+	}))
 	e.POST("/logout", login.Logout)
 	e.POST("/refresh", login.Refresh)
 
-	protected := e.Group("")
-	protected.Use(myMiddleware.Auth(cfg.Auth.JWTSecret))
+	manager := e.Group("")
+	manager.Use(myMiddleware.Auth(cfg.Auth.JWTSecret))
 
-	user := handler.User{UserService: userService, LoginService: loginService}
-	protected.GET("/user", user.Get)
-	protected.PUT("/user/password", user.UpdatePassword)
+	user := handler.User{UserService: deps.UserService, LoginService: deps.LoginService}
+	manager.GET("/user", user.Get)
+	manager.PUT("/user/password", user.UpdatePassword)
+
+	app := handler.App{AppService: deps.AppService}
+	manager.POST("/app", app.Add)
+	manager.GET("/app", app.List)
+	manager.PUT("/app/:id/ip-allow-list", app.UpdateIPAllowList)
+	manager.PUT("/app/:id/secret", app.UpdateSecret)
+	manager.DELETE("/app/:id", app.Delete)
+
+	appAuth := e.Group("")
+	appAuth.Use(myMiddleware.AppAuth(deps.AppService))
+
+	span := handler.Span{SpanService: deps.SpanService}
+	appAuth.POST("/spans", span.Report)
+
+	manager.GET("/traces/:trace_id", span.GetTrace)
+	manager.GET("/traces", span.ListTraces)
 }

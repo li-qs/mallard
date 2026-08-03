@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	Log     LogConfig     `mapstructure:"log"`
-	Server  ServerConfig  `mapstructure:"server"`
-	Mongodb MongodbConfig `mapstructure:"mongodb"`
-	Auth    AuthConfig    `mapstructure:"auth"`
+	Log         LogConfig         `mapstructure:"log"`
+	Server      ServerConfig      `mapstructure:"server"`
+	Mongodb     MongodbConfig     `mapstructure:"mongodb"`
+	Auth        AuthConfig        `mapstructure:"auth"`
+	TracingData TracingDataConfig `mapstructure:"tracing_data"`
 }
 
 type LogConfig struct {
@@ -30,6 +31,11 @@ type AuthConfig struct {
 	JWTSecret                 string `mapstructure:"jwt_secret"`
 	AccessTokenExpireSeconds  int    `mapstructure:"access_token_expire_seconds"`
 	RefreshTokenExpireSeconds int    `mapstructure:"refresh_token_expire_seconds"`
+	CookieSecure              bool   `mapstructure:"cookie_secure"`
+}
+
+type TracingDataConfig struct {
+	SpansExpireSeconds int `mapstructure:"spans_expire_seconds"`
 }
 
 func Load(v *viper.Viper) (*Config, error) {
@@ -38,6 +44,9 @@ func Load(v *viper.Viper) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 	setDefaults(&cfg)
+	if !v.IsSet("auth.cookie_secure") {
+		cfg.Auth.CookieSecure = true
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

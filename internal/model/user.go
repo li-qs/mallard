@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	UserDB   = "marllard"
+	UserDB   = "mallard"
 	UserColl = "user"
 )
 

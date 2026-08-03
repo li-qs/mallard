@@ -3,7 +3,7 @@ package response
 import (
 	"net/http"
 
-	"myapi/internal/vo"
+	"mallard/internal/vo"
 
 	"github.com/labstack/echo/v5"
 )
