@@ -102,8 +102,8 @@ func (h *Span) ListTraces(c *echo.Context) error {
 	}
 	if v := c.QueryParam("status"); v != "" {
 		s, err := strconv.Atoi(v)
-		if err != nil {
-			return response.JsonError(c, 400, "无效的 status")
+		if err != nil || (s != 1 && s != 2) {
+			return response.JsonError(c, 400, "无效的 status（1=成功，2=错误）")
 		}
 		filter.Status = &s
 	}

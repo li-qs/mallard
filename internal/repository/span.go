@@ -76,9 +76,16 @@ func (r *Span) ListTraces(ctx context.Context, filter TraceFilter, skip, limit i
 			{Key: "start_time", Value: bson.M{"$min": "$start_time"}},
 			{Key: "end_time", Value: bson.M{"$max": bson.M{"$add": bson.A{"$start_time", "$duration"}}}},
 			{Key: "span_count", Value: bson.M{"$sum": 1}},
-			{Key: "error_count", Value: bson.M{"$sum": bson.M{"$cond": bson.A{bson.M{"$ne": bson.A{"$status", 0}}, 1, 0}}}},
+			{Key: "error_count", Value: errorCountExpr},
 		}}},
-		{{Key: "$project", Value: bson.D{
+	}
+
+	if m := buildErrorMatch(filter); m != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: m}})
+	}
+
+	pipeline = append(pipeline,
+		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "trace_id", Value: "$_id"},
 			{Key: "app_ids", Value: 1},
 			{Key: "operation", Value: 1},
@@ -88,10 +95,10 @@ func (r *Span) ListTraces(ctx context.Context, filter TraceFilter, skip, limit i
 			{Key: "error_count", Value: 1},
 			{Key: "_id", Value: 0},
 		}}},
-		{{Key: "$sort", Value: bson.D{{Key: "start_time", Value: -1}}}},
-		{{Key: "$skip", Value: skip}},
-		{{Key: "$limit", Value: limit}},
-	}
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "start_time", Value: -1}}}},
+		bson.D{{Key: "$skip", Value: skip}},
+		bson.D{{Key: "$limit", Value: limit}},
+	)
 
 	c, err := r.coll.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -109,9 +116,17 @@ func (r *Span) ListTraces(ctx context.Context, filter TraceFilter, skip, limit i
 func (r *Span) CountTraces(ctx context.Context, filter TraceFilter) (int64, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: buildTraceMatch(filter)}},
-		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$trace_id"}}}},
-		{{Key: "$count", Value: "total"}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$trace_id"},
+			{Key: "error_count", Value: errorCountExpr},
+		}}},
 	}
+
+	if m := buildErrorMatch(filter); m != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: m}})
+	}
+
+	pipeline = append(pipeline, bson.D{{Key: "$count", Value: "total"}})
 
 	c, err := r.coll.Aggregate(ctx, pipeline)
 	if err != nil {
@@ -131,6 +146,24 @@ func (r *Span) CountTraces(ctx context.Context, filter TraceFilter) (int64, erro
 	return result[0].Total, nil
 }
 
+var errorCountExpr = bson.M{
+	"$sum": bson.M{"$cond": bson.A{bson.M{"$ne": bson.A{"$status", 0}}, 1, 0}},
+}
+
+func buildErrorMatch(filter TraceFilter) bson.M {
+	if filter.Status == nil {
+		return nil
+	}
+	switch *filter.Status {
+	case 1: // 成功：无错误 span
+		return bson.M{"error_count": 0}
+	case 2: // 错误：存在错误 span
+		return bson.M{"error_count": bson.M{"$gt": 0}}
+	default:
+		return nil
+	}
+}
+
 func buildTraceMatch(filter TraceFilter) bson.D {
 	match := bson.D{}
 	if filter.AppID != nil {
@@ -138,9 +171,6 @@ func buildTraceMatch(filter TraceFilter) bson.D {
 	}
 	if filter.Operation != "" {
 		match = append(match, bson.E{Key: "operation", Value: filter.Operation})
-	}
-	if filter.Status != nil {
-		match = append(match, bson.E{Key: "status", Value: *filter.Status})
 	}
 	if filter.TraceID != "" {
 		match = append(match, bson.E{Key: "trace_id", Value: bson.Regex{Pattern: "^" + regexp.QuoteMeta(filter.TraceID)}})

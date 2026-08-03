@@ -22,7 +22,7 @@
 - 分页：`page`/`page_size`（默认 1/10，上限 100），返回 `ListData<TraceSummary>`（app_ids、operation、start_time、duration、span_count、error_count、has_error）
 - 实现：`$match` → `$group by trace_id`（`$min` 开始时间、`$max(start+duration)` 计算链路时长、`$first` 取根 span operation、`error_count` 统计 status≠0）→ 按 start_time 倒序 → 分页；`CountTraces` 单独 `$group+$count`
 - 已加 `{start_time: -1}` 索引支持纯时间范围查询
-- 待确认语义：`error` 定义为 `status != 0`（TODO 约定 0=成功）。若 status 实际是 HTTP 状态码（200/500），需改成 `status >= 500`
+- `status` 筛选语义：不传=全部，`1`=成功（`error_count==0`），`2`=错误（`error_count>0`），在 `$group` 后按 `error_count` 过滤；span 数据侧仍以 `status != 0` 判定错误
 
 ### 2. Trace 详情树 / 瀑布图 `GET /traces/:trace_id` ✅ M2 已完成（方案 B）
 - 方案 B：保持平铺返回（按 start_time 正序），前端自行按 `parent_id` 组树

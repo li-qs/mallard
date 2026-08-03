@@ -53,12 +53,12 @@ func (s *App) Add(ctx context.Context, appName string, ipAllowList []string) (bs
 	return app.ID, secret, nil
 }
 
-func (s *App) List(ctx context.Context, page, pageSize int64) ([]model.App, int64, error) {
-	apps, err := s.appRepo.List(ctx, page, pageSize)
+func (s *App) List(ctx context.Context, filter repository.AppFilter, page, pageSize int64) ([]model.App, int64, error) {
+	apps, err := s.appRepo.List(ctx, filter, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.appRepo.Count(ctx)
+	total, err := s.appRepo.Count(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}

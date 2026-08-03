@@ -95,13 +95,13 @@ make server-linux-amd64
 | GET | `/user` | 当前用户信息 | 是 |
 | PUT | `/user/password` | 修改密码 | 是 |
 | POST | `/app` | 新增 App，返回 app_id + secret（仅展示一次） | 是 |
-| GET | `/app` | App 列表（分页：`page`、`page_size`） | 是 |
+| GET | `/app` | App 列表（`app_name` 模糊 / `id` 精确，可组合；分页：`page`、`page_size`） | 是 |
 | PUT | `/app/:id/ip-allow-list` | 更新 App IP allow list | 是 |
 | PUT | `/app/:id/secret` | 轮换 App secret | 是 |
 | DELETE | `/app/:id` | 删除 App | 是 |
 | POST | `/spans` | 批量上报 Span（`Authorization: Basic base64(app_id:secret)`） | App |
 | GET | `/traces/:trace_id` | 查询某个 trace 的全部 span，按 start_time 正序（含 `is_root` 根标记） | 是 |
-| GET | `/traces` | Trace 搜索列表（`app_id`/`operation`/`status`/`trace_id`/`start_time_gt`/`start_time_lt`/`page`/`page_size`） | 是 |
+| GET | `/traces` | Trace 搜索列表（`app_id`/`operation`/`status`(1=成功 2=错误)/`trace_id`/`start_time_gt`/`start_time_lt`/`page`/`page_size`） | 是 |
 
 > App 管理、Trace 查询接口走用户 JWT（`Authorization: Bearer <token>`）；span 上报走 App 凭证（Basic base64 认证）。
 

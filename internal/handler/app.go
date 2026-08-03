@@ -5,6 +5,7 @@ import (
 	"errors"
 	"mallard/internal/dto"
 	"mallard/internal/logger"
+	"mallard/internal/repository"
 	"mallard/internal/response"
 	"mallard/internal/service"
 	"mallard/internal/vo"
@@ -55,9 +56,17 @@ func (h *App) List(c *echo.Context) error {
 
 	page, pageSize := parsePagination(c)
 
-	apps, total, err := h.AppService.List(ctx, int64(page), int64(pageSize))
+	filter := repository.AppFilter{
+		AppName: c.QueryParam("app_name"),
+		ID:      c.QueryParam("id"),
+	}
+
+	apps, total, err := h.AppService.List(ctx, filter, int64(page), int64(pageSize))
 	if err != nil {
 		logger.Error("AppService.List failed", zap.Error(err))
+		if errors.Is(err, repository.ErrInvalidIDPrefix) {
+			return response.JsonError(c, 400, "无效的 app id")
+		}
 		return response.JsonError(c, 500, "服务器错误")
 	}
 

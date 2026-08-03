@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"mallard/internal/model"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -45,7 +46,12 @@ func (r *User) GetByUsername(ctx context.Context, username string) (*model.User,
 }
 
 func (r *User) UpdatePasswordHash(ctx context.Context, id bson.ObjectID, passwordHash string) error {
-	res, err := r.coll.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"password_hash": passwordHash})
+	res, err := r.coll.UpdateOne(ctx, bson.M{"_id": id}, bson.M{
+		"$set": bson.M{
+			"password_hash": passwordHash,
+			"updated_at":    time.Now(),
+		},
+	})
 	if err != nil {
 		return err
 	}
