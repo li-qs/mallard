@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"io/fs"
 	"log"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 	"mallard/internal/infra/repo"
 	myMiddleware "mallard/internal/middleware"
 	"mallard/internal/server"
+	"mallard/internal/web"
 	"mallard/pkg/mongodb"
 
 	"github.com/dgraph-io/ristretto/v2"
@@ -62,6 +64,7 @@ func main() {
 
 	userService := user.NewService(userRepo, tokenRepo, &user.ServiceOptions{
 		JWTSecret:                 cfg.JWTSecret,
+		TokenSalt:                 cfg.TokenSalt,
 		AccessTokenExpireSeconds:  cfg.AccessTTL,
 		RefreshTokenExpireSeconds: cfg.RefreshTTL,
 	})
@@ -85,16 +88,18 @@ func main() {
 		noAuth := e.Group("")
 		noAuth.GET("/health", healthHandler.Liveness)
 		noAuth.GET("/ready", healthHandler.Readiness)
-		noAuth.POST("/login", userHandler.Login, middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+
+		api := e.Group("/api")
+		api.POST("/login", userHandler.Login, middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
 			Store: middleware.NewRateLimiterMemoryStore(10),
 			IdentifierExtractor: func(c *echo.Context) (string, error) {
 				return c.RealIP(), nil
 			},
 		}))
-		noAuth.POST("/logout", userHandler.Logout)
-		noAuth.POST("/refresh", userHandler.RefreshToken)
+		api.POST("/logout", userHandler.Logout)
+		api.POST("/refresh", userHandler.RefreshToken)
 
-		g := e.Group("")
+		g := e.Group("/api")
 		g.Use(myMiddleware.Auth(cfg.JWTSecret))
 
 		g.GET("/user", userHandler.UserInfo)
@@ -108,6 +113,14 @@ func main() {
 
 		g.GET("/traces", spanHandler.ListTraces)
 		g.GET("/traces/:trace_id", spanHandler.GetTrace)
+
+		sub, err := fs.Sub(web.Dist, "dist")
+		if err != nil {
+			log.Fatalf("web fs sub failed: %v", err)
+		}
+		ui := web.SPA(sub)
+		e.GET("/", ui)
+		e.GET("/*", ui)
 	}
 
 	if err := server.Run(ctx, cfg.ServerAddr, cfg.LogLevel, register); err != nil {

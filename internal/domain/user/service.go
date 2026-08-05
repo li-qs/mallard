@@ -21,6 +21,7 @@ type Service struct {
 
 type ServiceOptions struct {
 	JWTSecret                 string
+	TokenSalt                 string
 	AccessTokenExpireSeconds  int
 	RefreshTokenExpireSeconds int
 }
@@ -61,12 +62,12 @@ func (s *Service) GenerateTokens(ctx context.Context, user *UserEntity) (string,
 		return "", "", 0, err
 	}
 
-	refreshRaw, err := utils.GenerateRandomString(32)
+	refreshRaw, err := utils.RandomString(32)
 	if err != nil {
 		return "", "", 0, err
 	}
 
-	hash := hashToken(refreshRaw)
+	hash := s.hashRefreshToken(refreshRaw)
 	expiresAt := now.Add(time.Duration(s.options.RefreshTokenExpireSeconds) * time.Second)
 	if err := s.tokenRepo.Create(ctx, user.ID, hash, expiresAt); err != nil {
 		return "", "", 0, err
@@ -76,7 +77,7 @@ func (s *Service) GenerateTokens(ctx context.Context, user *UserEntity) (string,
 }
 
 func (s *Service) RefreshTokens(ctx context.Context, refreshRaw string) (string, string, int, error) {
-	tokenHash := hashToken(refreshRaw)
+	tokenHash := s.hashRefreshToken(refreshRaw)
 	rt, err := s.tokenRepo.GetByToken(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -105,7 +106,7 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshRaw string) (string,
 }
 
 func (s *Service) Logout(ctx context.Context, refreshRaw string) error {
-	tokenHash := hashToken(refreshRaw)
+	tokenHash := s.hashRefreshToken(refreshRaw)
 	rt, err := s.tokenRepo.GetByToken(ctx, tokenHash)
 	if err != nil {
 		return err
@@ -130,9 +131,8 @@ func (s *Service) generateJWT(user *UserEntity, now time.Time) (string, error) {
 	return token.SignedString([]byte(s.options.JWTSecret))
 }
 
-func hashToken(raw string) string {
-	// TODO: 加盐
-	return utils.SHA256Hex(raw)
+func (s *Service) hashRefreshToken(raw string) string {
+	return utils.HMACSHA256Hex(s.options.TokenSalt, raw)
 }
 
 func (s *Service) GetByID(ctx context.Context, userID bson.ObjectID) (*UserEntity, error) {

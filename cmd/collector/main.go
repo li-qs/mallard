@@ -76,7 +76,7 @@ func main() {
 		noAuth.GET("/health", healthHandler.Liveness)
 		noAuth.GET("/ready", healthHandler.Readiness)
 
-		g := e.Group("")
+		g := e.Group("/api/v1")
 		g.Use(myMiddleware.AppAuth(appService))
 		g.POST("/spans", spanHandler.ReportSpans)
 	}

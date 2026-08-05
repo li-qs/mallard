@@ -61,7 +61,7 @@ func (s *Service) List(ctx context.Context, filter AppFilter, page, pageSize int
 }
 
 func (s *Service) generateSecret() (secret string, secretHash string, err error) {
-	secret, err = utils.GenerateRandomString(32)
+	secret, err = utils.RandomString(32)
 	if err != nil {
 		return "", "", err
 	}

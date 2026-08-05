@@ -150,22 +150,22 @@ export interface TraceSummary {
 
 | 方法 | 路径 | 认证 | 说明 | 入参 | 出参(data) |
 |---|---|---|---|---|---|
-| POST | `/login` | 否 | 登录（Cookie 自动带 refresh_token） | `LoginReq` | `LoginRes` |
-| POST | `/logout` | 否 | 登出（清 Cookie） | - | `""` |
-| POST | `/refresh` | 否 | 刷新 access_token（靠 Cookie） | - | `LoginRes` |
-| GET | `/user` | JWT | 当前用户 | - | `User` |
-| PUT | `/user/password` | JWT | 修改密码（成功后后端撤销该用户全部 refresh token，需重新登录） | `UpdatePasswordReq` | `""` |
-| POST | `/app` | JWT | 新增 App，`secret` **仅返回一次** | `AddAppReq` | `AppAddRes` |
-| GET | `/app` | JWT | App 列表（`app_name` 子串模糊 / `id` 精确，可组合 AND；`page`、`page_size` 分页） | `page, page_size, app_name, id` | `ListData<App>` |
-| PUT | `/app/:id/ip-allow-list` | JWT | 更新 IP allow list | `{ ip_allow_list: string[] }` | `""` |
-| PUT | `/app/:id/secret` | JWT | 轮换 secret，新 secret 仅返回一次 | - | `AppSecretRes` |
-| DELETE | `/app/:id` | JWT | 删除 App | - | `""` |
-| GET | `/traces/:traceId` | JWT | 某 trace 全部 span（start_time 正序） | - | `Span[]` |
-| GET | `/traces` | JWT | Trace 搜索列表 | 见 4.3 | `ListData<TraceSummary>` |
+| POST | `/api/login` | 否 | 登录（Cookie 自动带 refresh_token） | `LoginReq` | `LoginRes` |
+| POST | `/api/logout` | 否 | 登出（清 Cookie） | - | `""` |
+| POST | `/api/refresh` | 否 | 刷新 access_token（靠 Cookie） | - | `LoginRes` |
+| GET | `/api/user` | JWT | 当前用户 | - | `User` |
+| PUT | `/api/user/password` | JWT | 修改密码（成功后后端撤销该用户全部 refresh token，需重新登录） | `UpdatePasswordReq` | `""` |
+| POST | `/api/app` | JWT | 新增 App，`secret` **仅返回一次** | `AddAppReq` | `AppAddRes` |
+| GET | `/api/app` | JWT | App 列表（`app_name` 子串模糊 / `id` 精确，可组合 AND；`page`、`page_size` 分页） | `page, page_size, app_name, id` | `ListData<App>` |
+| PUT | `/api/app/:id/ip-allow-list` | JWT | 更新 IP allow list | `{ ip_allow_list: string[] }` | `""` |
+| PUT | `/api/app/:id/secret` | JWT | 轮换 secret，新 secret 仅返回一次 | - | `AppSecretRes` |
+| DELETE | `/api/app/:id` | JWT | 删除 App | - | `""` |
+| GET | `/api/traces/:traceId` | JWT | 某 trace 全部 span（start_time 正序） | - | `Span[]` |
+| GET | `/api/traces` | JWT | Trace 搜索列表 | 见 4.3 | `ListData<TraceSummary>` |
 
-> 注：`POST /spans` 是 App 上报接口（Basic 认证），**前端控制台不使用**，仅了解即可。
+> 注：`POST /api/v1/spans` 是 App 上报接口（Basic 认证，走 collector），**前端控制台不使用**，仅了解即可。
 
-### 4.3 Trace 搜索参数（GET /traces）
+### 4.3 Trace 搜索参数（GET /api/traces）
 
 全部为 query 参数，均可选：
 ```
@@ -285,7 +285,7 @@ page_size       number   # 默认 10，上限 100
 
 ## 7. 联调注意事项
 
-- 后端默认地址 `http://localhost:9010`，axios `baseURL` 用 `.env` 的 `VITE_API_BASE_URL` 配置。
+- 后端同源部署：UI 构建产物内嵌进 server 二进制，访问 `http://localhost:9010/` 即用；axios `baseURL` 默认 `/api`（可用 `.env` 的 `VITE_API_BASE_URL` 覆盖，如本地联调指向 `http://localhost:9010/api`）。
 - 后端 CORS 已开启 `AllowCredentials`，前端 Cookie 模式需要 `withCredentials: true`（axios）。
 - 本地纯 HTTP 联调：后端 `config.yaml` 需设 `cookie_secure: false`（否则 refresh_token Cookie 不会在 http 下发送）。
 - 登录态失效（refresh 也失败）统一处理：清 token + 跳登录 + `message.warning('登录已过期')`。

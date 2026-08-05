@@ -4,13 +4,12 @@
 
 ## Web 控制台（Mallard-UI）
 
-管理后台（登录 / Trace 检索 / Trace 详情 / App 管理）由独立前端项目提供：
+管理后台（登录 / Trace 检索 / Trace 详情 / App 管理）由独立前端项目 [mallard-ui](https://github.com/li-qs/mallard-ui)（React 18 + TypeScript + Vite + Ant Design 5）提供。
 
-- 仓库：[github.com/li-qs/mallard-ui](https://github.com/li-qs/mallard-ui)
-- 技术栈：React 18 + TypeScript + Vite + Ant Design 5
+- **构建产物已内嵌进 server 二进制**（`//go:embed internal/web/dist`），启动 `cmd/mallard` 后直接访问 `http://localhost:9010/` 即可使用，无需单独起前端
+- 更新 UI：在 mallard-ui 仓库 `npm run build` 后把 `dist/` 拷贝到本仓库 `internal/web/dist/` 再重新编译
+- 本地联调：前端 dev server 默认 `http://localhost:5173`；后端需在 `config.yaml` 的 `allow_origins` 加上该源，并设 `cookie_secure: false`
 - 对接说明：本仓库 [mallard-ui-design.md](./mallard-ui-design.md)（API 契约、页面设计、全局约定）
-
-本地联调：前端 dev server 默认 `http://localhost:5173`；后端需在 `config.yaml` 的 `server.allow_origins` 加上该源，并设 `auth.cookie_secure: false`（纯 HTTP 下 Cookie 才能生效）。
 
 ## 技术栈
 
@@ -46,23 +45,23 @@
 ## 认证流程
 
 ```
-登录:   POST /login     → 返回 JWT（响应体） + Refresh Token（HttpOnly Cookie）
-刷新:   POST /refresh   → Cookie 携带 Refresh Token，返回新 JWT + 新 Refresh Token（Rotation）
-登出:   POST /logout    → 删除 Refresh Token，清除 Cookie
-改密:   PUT /user/password → 撤销该用户所有 Refresh Token，需重新登录
+登录:   POST /api/login     → 返回 JWT（响应体） + Refresh Token（HttpOnly Cookie）
+刷新:   POST /api/refresh   → Cookie 携带 Refresh Token，返回新 JWT + 新 Refresh Token（Rotation）
+登出:   POST /api/logout    → 删除 Refresh Token，清除 Cookie
+改密:   PUT /api/user/password → 撤销该用户所有 Refresh Token，需重新登录
 ```
 
 - Access Token（JWT）有效期 15 分钟，放 `Authorization: Bearer <token>` Header
 - Refresh Token 为随机不透明串，有效期 7 天，服务端只存 SHA-256 哈希
-- `/login` 按 IP 限流（默认 10 req/s），`cookie_secure` 默认开启，纯 HTTP 本地联调时需显式设为 `false`
+- `/api/login` 按 IP 限流（默认 10 req/s），`cookie_secure` 默认开启，纯 HTTP 本地联调时需显式设为 `false`
 
 ### App 上报流程
 
 ```
-注册 App: POST /app          → 返回 app_id + secret（仅展示一次）
-配置 allow list: PUT /app/:id/ip-allow-list → 限制上报来源 IP（CIDR 或精确 IP）
-上报 Span:  POST /spans      → Authorization: Basic base64(app_id:secret)，批量上报
-检索链路:  GET /traces       → 按条件搜索 Trace；GET /traces/:trace_id 查详情
+注册 App:  POST /api/app          → 返回 app_id + secret（仅展示一次）
+配置 allow list: PUT /api/app/:id/ip-allow-list → 限制上报来源 IP（CIDR 或精确 IP）
+上报 Span:  POST /api/v1/spans    → collector :9011，Authorization: Basic base64(app_id:secret)，批量上报
+检索链路:  GET /api/traces        → server :9010，按条件搜索 Trace；GET /api/traces/:trace_id 查详情
 ```
 
 - App secret 为 32 字节随机串，服务端只存 SHA-256 哈希，本地 TTL 缓存（60s）+ `subtle.ConstantTimeCompare` 校验
@@ -103,21 +102,22 @@ make server-linux-amd64
 |------|------|------|------|
 | GET | `/health` | 存活探针（liveness），进程存活即 200 | 否 |
 | GET | `/ready` | 就绪探针（readiness），Mongo 可达返回 200，否则 503 | 否 |
-| POST | `/login` | 登录 | 否 |
-| POST | `/logout` | 登出 | 否 |
-| POST | `/refresh` | 刷新 Token | 否 |
-| GET | `/user` | 当前用户信息 | 是 |
-| PUT | `/user/password` | 修改密码 | 是 |
-| POST | `/app` | 新增 App，返回 app_id + secret（仅展示一次） | 是 |
-| GET | `/app` | App 列表（`app_name` 模糊 / `id` 精确，可组合；分页：`page`、`page_size`） | 是 |
-| PUT | `/app/:id/ip-allow-list` | 更新 App IP allow list | 是 |
-| PUT | `/app/:id/secret` | 轮换 App secret | 是 |
-| DELETE | `/app/:id` | 删除 App | 是 |
-| POST | `/spans` | 批量上报 Span（`Authorization: Basic base64(app_id:secret)`） | App |
-| GET | `/traces/:trace_id` | 查询某个 trace 的全部 span，按 start_time 正序（含 `is_root` 根标记） | 是 |
-| GET | `/traces` | Trace 搜索列表（`app_id`/`operation`/`status`(1=成功 2=错误)/`trace_id`/`start_time_gt`/`start_time_lt`/`page`/`page_size`） | 是 |
+| POST | `/api/login` | 登录 | 否 |
+| POST | `/api/logout` | 登出 | 否 |
+| POST | `/api/refresh` | 刷新 Token | 否 |
+| GET | `/api/user` | 当前用户信息 | 是 |
+| PUT | `/api/user/password` | 修改密码 | 是 |
+| POST | `/api/app` | 新增 App，返回 app_id + secret（仅展示一次） | 是 |
+| GET | `/api/app` | App 列表（`app_name` 模糊 / `id` 精确，可组合；分页：`page`、`page_size`） | 是 |
+| PUT | `/api/app/:id/ip-allow-list` | 更新 App IP allow list | 是 |
+| PUT | `/api/app/:id/secret` | 轮换 App secret | 是 |
+| DELETE | `/api/app/:id` | 删除 App | 是 |
+| POST | `/api/v1/spans` | 批量上报 Span（collector，`Authorization: Basic base64(app_id:secret)`） | App |
+| GET | `/api/traces/:trace_id` | 查询某个 trace 的全部 span，按 start_time 正序（含 `is_root` 根标记） | 是 |
+| GET | `/api/traces` | Trace 搜索列表（`app_id`/`operation`/`status`(1=成功 2=错误)/`trace_id`/`start_time_gt`/`start_time_lt`/`page`/`page_size`） | 是 |
 
 > App 管理、Trace 查询接口走用户 JWT（`Authorization: Bearer <token>`）；span 上报走 App 凭证（Basic base64 认证）。
+> Web 控制台（mallard-ui 构建产物）内嵌在 server 二进制中，访问 `http://localhost:9010/` 直接使用；API 统一 `/api` 前缀。
 
 ## 配置
 
@@ -135,6 +135,7 @@ log_level: info
 mongo_uri: mongodb://user:password@localhost:27017/mallard?authSource=admin
 
 jwt_secret: "your-random-secret"
+token_salt: "your-random-salt"   # refresh token HMAC 加盐（防彩虹表）
 access_ttl: 900
 refresh_ttl: 604800
 span_ttl: 604800     # span 数据保留时长（秒），通过 TTL 索引自动清理

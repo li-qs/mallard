@@ -24,6 +24,7 @@ type Config struct {
 	LogLevel              string   `yaml:"log_level"`
 	MongoURI              string   `yaml:"mongo_uri"`
 	JWTSecret             string   `yaml:"jwt_secret"`
+	TokenSalt             string   `yaml:"token_salt"`
 	AccessTTL             int      `yaml:"access_ttl"`
 	RefreshTTL            int      `yaml:"refresh_ttl"`
 	SpanTTL               int      `yaml:"span_ttl"`
