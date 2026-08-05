@@ -122,25 +122,27 @@ make server-linux-amd64
 ## 配置
 
 ```yaml
-server:
-  listen_addr: :9010
-  allow_origins:
-    - http://localhost:3000
+server_addr: :9010
+collector_addr: :9011
 
-mongodb:
-  main: mongodb://user:password@localhost:27017/mallard?authSource=admin
+allow_origins:
+  - http://localhost:3000
+collector_allow_origins:
+  - http://localhost:3000
 
-auth:
-  jwt_secret: "your-random-secret"
-  access_token_expire_seconds: 900
-  refresh_token_expire_seconds: 604800
-  cookie_secure: true   # 纯 HTTP 本地开发请设为 false
+log_level: info
 
-tracing_data:
-  spans_expire_seconds: 604800   # span 数据保留时长（秒），通过 TTL 索引自动清理
+mongo_uri: mongodb://user:password@localhost:27017/mallard?authSource=admin
+
+jwt_secret: "your-random-secret"
+access_ttl: 900
+refresh_ttl: 604800
+span_ttl: 604800     # span 数据保留时长（秒），通过 TTL 索引自动清理
+cookie_secure: true  # 纯 HTTP 本地开发请设为 false
 ```
 
-- `listen_addr` 默认 `:9010`
-- `access_token_expire_seconds` 默认 `900`（15 分钟）
-- `refresh_token_expire_seconds` 默认 `604800`（7 天）
+- `server_addr` 默认 `:9010`（管理端）
+- `collector_addr` 默认 `:9011`（采集端）
+- `access_ttl` 默认 `900`（15 分钟，秒）
+- `refresh_ttl` 默认 `604800`（7 天，秒）
 - `cookie_secure` 默认 `true`

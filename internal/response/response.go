@@ -3,10 +3,10 @@ package response
 import (
 	"net/http"
 
-	"mallard/internal/vo"
-
 	"github.com/labstack/echo/v5"
 )
+
+const CodeOK = 0
 
 type Response[T any] struct {
 	Code    int    `json:"code"`
@@ -23,19 +23,19 @@ type ListData[T any] struct {
 
 func JsonData[T any](c *echo.Context, data T) error {
 	return c.JSON(http.StatusOK, &Response[T]{
-		Code: 0,
+		Code: CodeOK,
 		Data: data,
 	})
 }
 
-func JsonList[T any](c *echo.Context, l T, p vo.Pagination) error {
+func JsonList[T any](c *echo.Context, list T, page int, pageSize int, total int) error {
 	return c.JSON(http.StatusOK, &Response[ListData[T]]{
-		Code: 0,
+		Code: CodeOK,
 		Data: ListData[T]{
-			List:     l,
-			Page:     p.Page,
-			PageSize: p.PageSize,
-			Total:    p.Total,
+			List:     list,
+			Page:     page,
+			PageSize: pageSize,
+			Total:    total,
 		},
 	})
 }

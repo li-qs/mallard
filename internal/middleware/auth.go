@@ -3,7 +3,7 @@ package middleware
 import (
 	"strings"
 
-	"mallard/internal/model"
+	"mallard/internal/reqctx"
 	"mallard/internal/response"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -53,7 +53,7 @@ func Auth(jwtSecret string) echo.MiddlewareFunc {
 				return response.JsonError(c, 401, msgTokenExpired)
 			}
 
-			c.Set("user", &model.User{
+			reqctx.SetUser(c, &reqctx.UserCtx{
 				ID:       userID,
 				Username: username,
 			})

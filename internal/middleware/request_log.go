@@ -1,14 +1,14 @@
 package middleware
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
-	"go.uber.org/zap"
 )
 
-func RequestLogger(logger *zap.Logger) echo.MiddlewareFunc {
+func RequestLogger() echo.MiddlewareFunc {
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogMethod:        true,
 		LogURI:           true,
@@ -19,25 +19,24 @@ func RequestLogger(logger *zap.Logger) echo.MiddlewareFunc {
 		LogRequestID:     true,
 		LogUserAgent:     true,
 		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
-			fields := []zap.Field{
-				zap.String("method", v.Method),
-				zap.String("uri", v.URI),
-				zap.Int("status", v.Status),
-				zap.Duration("latency", v.Latency),
-				zap.String("ip", v.RemoteIP),
-				zap.String("content_length", v.ContentLength),
-				zap.String("request_id", v.RequestID),
-				zap.String("user_agent", v.UserAgent),
+			args := []any{
+				"method", v.Method,
+				"uri", v.URI,
+				"status", v.Status,
+				"latency", v.Latency,
+				"ip", v.RemoteIP,
+				"content_length", v.ContentLength,
+				"request_id", v.RequestID,
+				"user_agent", v.UserAgent,
 			}
-
 			if v.Error != nil {
-				fields = append(fields, zap.Error(v.Error))
+				args = append(args, "error", v.Error)
 			}
 
 			if v.Latency > time.Second {
-				logger.Warn("slow request", fields...)
+				slog.Warn("slow request", args...)
 			} else {
-				logger.Info("request", fields...)
+				slog.Info("request", args...)
 			}
 
 			return nil

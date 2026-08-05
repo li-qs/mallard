@@ -3,17 +3,17 @@ package middleware
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/netip"
 	"strings"
 	"time"
 
-	"mallard/internal/logger"
+	"mallard/internal/domain/app"
+	"mallard/internal/reqctx"
 	"mallard/internal/response"
-	"mallard/internal/service"
 
 	"github.com/labstack/echo/v5"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.uber.org/zap"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 	msgIPNotAllowed  = "IP 不在 allow list 内"
 )
 
-func AppAuth(s *service.App) echo.MiddlewareFunc {
+func AppAuth(s *app.Service) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
@@ -39,18 +39,18 @@ func AppAuth(s *service.App) echo.MiddlewareFunc {
 				return response.JsonError(c, 401, msgInvalidSecret)
 			}
 
+			ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+			defer cancel()
+
 			appID, err := bson.ObjectIDFromHex(parts[0])
 			if err != nil {
 				return response.JsonError(c, 401, msgInvalidSecret)
 			}
 			appSecret := parts[1]
 
-			ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
-			defer cancel()
-
 			app, valid, err := s.ValidSecret(ctx, appID, appSecret)
 			if err != nil {
-				logger.Error("AppAuth failed", zap.Error(err))
+				slog.Error("AppAuth failed", "error", err)
 				return response.JsonError(c, 401, msgInvalidSecret)
 			}
 			if !valid {
@@ -60,7 +60,14 @@ func AppAuth(s *service.App) echo.MiddlewareFunc {
 				return response.JsonError(c, 403, msgIPNotAllowed)
 			}
 
-			c.Set("app", app)
+			reqctx.SetApp(c, &reqctx.AppCtx{
+				ID:          app.ID,
+				AppName:     app.AppName,
+				SecretHash:  app.SecretHash,
+				IPAllowList: app.IPAllowList,
+				CreatedAt:   app.CreatedAt,
+				UpdatedAt:   app.UpdatedAt,
+			})
 
 			return next(c)
 		}

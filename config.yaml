@@ -1,20 +1,19 @@
-server:
-  listen_addr: :9010
-  allow_origins:
-    - http://localhost:5173
-    - http://127.0.0.1:5173
+server_addr: :9010
+collector_addr: :9011
 
-log:
-  level: info
+allow_origins:
+  - http://localhost:5173
+  - http://127.0.0.1:5173
+collector_allow_origins:
+  - http://localhost:5173
+  - http://127.0.0.1:5173
 
-mongodb:
-  main: mongodb://root:123456@192.168.5.10:27017/mallard?authSource=admin
+log_level: info
 
-auth:
-  jwt_secret: "change-me-to-a-random-secret"
-  access_token_expire_seconds: 900
-  refresh_token_expire_seconds: 604800
-  cookie_secure: false
+mongo_uri: mongodb://root:123456@192.168.5.10:27017/mallard?authSource=admin
 
-tracing_data:
-  spans_expire_seconds: 604800
+jwt_secret: "change-me-to-a-random-secret"
+access_ttl: 900
+refresh_ttl: 604800
+span_ttl: 604800
+cookie_secure: false
