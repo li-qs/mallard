@@ -9,6 +9,7 @@
 - **构建产物已内嵌进 server 二进制**（`//go:embed internal/web/dist`），启动 `cmd/mallard` 后直接访问 `http://localhost:9010/` 即可使用，无需单独起前端
 - 更新 UI：在 mallard-ui 仓库 `npm run build` 后把 `dist/` 拷贝到本仓库 `internal/web/dist/` 再重新编译
 - 本地联调：前端 dev server 默认 `http://localhost:5173`；后端需在 `config.yaml` 的 `allow_origins` 加上该源，并设 `cookie_secure: false`
+- 界面预览：[screenshots.md](./screenshots.md)（Trace 检索 / 瀑布图 / App 管理 / 个人中心）
 - 对接说明：本仓库 [mallard-ui-design.md](./mallard-ui-design.md)（API 契约、页面设计、全局约定）
 
 ## 技术栈
